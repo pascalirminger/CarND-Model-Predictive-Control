@@ -44,8 +44,7 @@ double polyeval(Eigen::VectorXd coeffs, double x) {
 // Fit a polynomial.
 // Adapted from
 // https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
-Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
-                        int order) {
+Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals, int order) {
   assert(xvals.size() == yvals.size());
   assert(order >= 1 && order <= xvals.size() - 1);
   Eigen::MatrixXd A(xvals.size(), order + 1);
@@ -71,8 +70,7 @@ int main() {
   // MPC is initialized here!
   MPC mpc;
 
-  h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-                     uWS::OpCode opCode) {
+  h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -92,14 +90,52 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
-          /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
-          double steer_value;
-          double throttle_value;
+          /*******************************************************************************
+          *  Transform waypoint coordinates to vehicle coordinates                       *
+          *******************************************************************************/
+          const size_t n_waypoints = ptsx.size();
+          const double minus_psi = 0.0 - psi;
+          auto ptsx_transformed = Eigen::VectorXd(n_waypoints);
+          auto ptsy_transformed = Eigen::VectorXd(n_waypoints);
+          for (int i = 0; i < n_waypoints; i++) {  // For each waypoint
+            const double dX = ptsx[i] - px;
+            const double dY = ptsy[i] - py;
+            ptsx_transformed[i] = dX * cos(minus_psi) - dY * sin(minus_psi);
+            ptsy_transformed[i] = dX * sin(minus_psi) + dY * cos(minus_psi);
+          }
+
+          /*******************************************************************************
+          *  Fit a 3rd order polynomial to the waypoints                                 *
+          *******************************************************************************/
+          auto coeffs = polyfit(ptsx_transformed, ptsy_transformed, 3);
+
+          /*******************************************************************************
+          *  Define the current state vector                                             *
+          *******************************************************************************/
+          // Initial state
+          const double x0 = 0;
+          const double y0 = 0;
+          const double psi0 = 0;
+          const double cte0 = polyeval(coeffs, 0);
+          const double epsi0 = -atan(coeffs[1]);
+
+          // Define state vector
+          Eigen::VectorXd state(6);
+          state << x0, y0, psi0, v, cte0, epsi0;
+
+          /*******************************************************************************
+          *  Find the MPC solution                                                       *
+          *******************************************************************************/
+          vector<double> mpc_result = mpc.Solve(state, coeffs);
+
+          //std::cout << "mpc_result " << mpc_result << std::endl;
+
+          /*******************************************************************************
+          *  Define JSON object                                                          *
+          *******************************************************************************/
+          // Compute steering value and angle value
+          const double steer_value = mpc_result[0] / deg2rad(25);  // Normalize to [-1, 1];
+          const double throttle_value = mpc_result[1];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -107,22 +143,34 @@ int main() {
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
 
-          //Display the MPC predicted trajectory 
+          // Display the MPC predicted trajectory 
           vector<double> mpc_x_vals;
           vector<double> mpc_y_vals;
 
-          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
+          // .. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
+          for (int i = 2; i < mpc_result.size(); i++) {
+            if (i % 2 == 0) {
+              mpc_x_vals.push_back(mpc_result[i]);
+            }
+            else {
+              mpc_y_vals.push_back(mpc_result[i]);
+            }
+          }
 
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
 
-          //Display the waypoints/reference line
+          // Display the waypoints/reference line
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 
-          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
+          // .. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
+          for (int i = 0; i < n_waypoints; i++) {  // For each waypoint
+            next_x_vals.push_back(ptsx_transformed[i]);
+            next_y_vals.push_back(ptsy_transformed[i]);
+          }
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
@@ -137,8 +185,7 @@ int main() {
           // Feel free to play around with this value but should be to drive
           // around the track with 100ms latency.
           //
-          // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
-          // SUBMITTING.
+          // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE SUBMITTING.
           this_thread::sleep_for(chrono::milliseconds(100));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
