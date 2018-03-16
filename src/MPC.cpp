@@ -10,19 +10,21 @@ size_t N = 10;
 double dt = 0.1;
 
 // This value assumes the model presented in the classroom is used.
-//
 // It was obtained by measuring the radius formed by running the vehicle in the
 // simulator around in a circle with a constant steering angle and velocity on a
 // flat terrain.
-//
 // Lf was tuned until the the radius formed by the simulating the model
 // presented in the classroom matched the previous radius.
-//
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
 
-const double ref_v = 100;
+// Reference values for errors and velocity
+const double ref_cte = 0;
+const double ref_epsi = 0;
+const double ref_v = 95; // 100 => Race Mode, 95 => Safe Mode
 
+// The solver takes all state and actuator values from a single vector:
+// Set up indices for easier access later on
 const size_t x_start = 0;
 const size_t y_start = x_start + N;
 const size_t psi_start = y_start + N;
@@ -44,25 +46,26 @@ class FG_eval {
     // `fg` a vector of the cost constraints
     // `vars` is a vector of variable values (state & actuators)
 
+    // The cost is stored is the first element of `fg`
     fg[0] = 0;
 
     // The part of the cost based on the reference state
-    for (int t=0; t<N; t++) {
-      fg[0] += CppAD::pow(vars[cte_start + t], 2);
-      fg[0] += CppAD::pow(vars[epsi_start + t], 2);
-      fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
+    for (int i = 0; i < N; i++) {
+      fg[0] += 2000 * CppAD::pow(vars[cte_start + i] - ref_cte, 2);
+      fg[0] += 2000 * CppAD::pow(vars[epsi_start + i] - ref_epsi, 2);
+      fg[0] += CppAD::pow(vars[v_start + i] - ref_v, 2);
     }
 
     // Minimize the use of actuators
-    for (int t=0; t<N-1; t++) {
-      fg[0] += CppAD::pow(vars[delta_start + t], 2);
-      fg[0] += CppAD::pow(vars[a_start + t], 2);
+    for (int i = 0; i < N - 1; i++) {
+      fg[0] += 100 * CppAD::pow(vars[delta_start + i], 2);
+      fg[0] += 10 * CppAD::pow(vars[a_start + i], 2);
     }
 
     // Minimize the value gap between sequential actuations
-    for (int t=0; t<N-2; t++) {
-      fg[0] += CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
-      fg[0] += CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
+    for (int i = 0; i < N - 2; i++) {
+      fg[0] += 100 * CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
+      fg[0] += 10 * CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
     }
     
     // Initial constraints
@@ -74,38 +77,38 @@ class FG_eval {
     fg[1 + epsi_start] = vars[epsi_start];
 
     // The rest of the constraints
-    for (int t=1; t<N; t++) {
+    for (int i = 1; i < N; i++) {
       // The state at time t+1
-      const AD<double> x1    = vars[x_start + t];
-      const AD<double> y1    = vars[y_start + t];
-      const AD<double> psi1  = vars[psi_start + t];
-      const AD<double> v1    = vars[v_start + t];
-      const AD<double> cte1  = vars[cte_start + t];
-      const AD<double> epsi1 = vars[epsi_start + t];
+      const AD<double> x1    = vars[x_start + i];
+      const AD<double> y1    = vars[y_start + i];
+      const AD<double> psi1  = vars[psi_start + i];
+      const AD<double> v1    = vars[v_start + i];
+      const AD<double> cte1  = vars[cte_start + i];
+      const AD<double> epsi1 = vars[epsi_start + i];
 
       // The state at time t
-      const AD<double> x0    = vars[x_start + t - 1];
-      const AD<double> y0    = vars[y_start + t - 1];
-      const AD<double> psi0  = vars[psi_start + t - 1];
-      const AD<double> v0    = vars[v_start + t - 1];
-      const AD<double> cte0  = vars[cte_start + t - 1];
-      const AD<double> epsi0 = vars[epsi_start + t - 1];
+      const AD<double> x0    = vars[x_start + i - 1];
+      const AD<double> y0    = vars[y_start + i - 1];
+      const AD<double> psi0  = vars[psi_start + i - 1];
+      const AD<double> v0    = vars[v_start + i - 1];
+      const AD<double> cte0  = vars[cte_start + i - 1];
+      const AD<double> epsi0 = vars[epsi_start + i - 1];
 
       // Only consider the actuation at time t
-      const AD<double> delta0 = vars[delta_start + t - 1];
-      const AD<double> a0 = vars[a_start + t - 1];
+      const AD<double> delta0 = vars[delta_start + i - 1];
+      const AD<double> a0 = vars[a_start + i - 1];
 
-      const AD<double> f0 = coeffs[0] + coeffs[1] * x0;
-      const AD<double> psides0 = CppAD::atan(coeffs[1]);
+      const AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * pow(x0, 2) + coeffs[3] * pow(x0, 3);
+      const AD<double> psides0 = CppAD::atan(coeffs[1] + (2 * coeffs[2] * x0) + (3 * coeffs[3] * pow(x0, 2)));
 
       // Here's `x` to get you started
       // The idea here is to constraint this value to be 0
-      fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
-      fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
-      fg[1 + psi_start + t] = psi1 - (psi0 + v0 * delta0 / Lf * dt);
-      fg[1 + v_start + t] = v1 - (v0 + a0 * dt);
-      fg[1 + cte_start + t] = cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
-      fg[1 + epsi_start + t] = epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt);
+      fg[1 + x_start + i] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
+      fg[1 + y_start + i] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
+      fg[1 + psi_start + i] = psi1 - (psi0 - v0 * delta0 / Lf * dt);
+      fg[1 + v_start + i] = v1 - (v0 + a0 * dt);
+      fg[1 + cte_start + i] = cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
+      fg[1 + epsi_start + i] = epsi1 - ((psi0 - psides0) - v0 * delta0 / Lf * dt);
     }
   }
 };
@@ -121,7 +124,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   //size_t i;
   typedef CPPAD_TESTVECTOR(double) Dvector;
 
-  // Extract state values for better readibility
+  // Extract state values for better readability
   const double x    = state[0];
   const double y    = state[1];
   const double psi  = state[2];
@@ -151,19 +154,19 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   
   // Set all non-actuators upper and lower limits to the max negative and
   // positive values
-  for (int i=0; i<delta_start; i++) {
+  for (int i = 0; i < delta_start; i++) {
     vars_lowerbound[i] = -1.0e19;
     vars_upperbound[i] = 1.0e19;
   }
 
   // The upper and lower limits of delta are set to -25 to 25 degrees (radians)
-  for (int i=delta_start; i<a_start; i++) {
-    vars_lowerbound[i] = -0.436332*Lf;
-    vars_upperbound[i] = 0.43632*Lf;
+  for (int i = delta_start; i < a_start; i++) {
+    vars_lowerbound[i] = -0.436332/**Lf*/;
+    vars_upperbound[i] = 0.43632/**Lf*/;
   }
 
   // Actuator limits
-  for ( int i=a_start; i<n_vars; i++) {
+  for (int i = a_start; i < n_vars; i++) {
     vars_lowerbound[i] = -1.0;
     vars_upperbound[i] = 1.0;
   }
@@ -172,7 +175,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // Should be 0 besides initial state
   Dvector constraints_lowerbound(n_constraints);
   Dvector constraints_upperbound(n_constraints);
-  for (int i=0; i<n_constraints; i++) {
+  for (int i = 0; i < n_constraints; i++) {
     constraints_lowerbound[i] = 0;
     constraints_upperbound[i] = 0;
   }
@@ -233,7 +236,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   result.push_back(solution.x[delta_start]);
   result.push_back(solution.x[a_start]);
   
-  for (int i=0; i<N-2; i++) {
+  for (int i = 0; i < N - 1; i++) {
     result.push_back(solution.x[x_start + i + 1]);
     result.push_back(solution.x[y_start + i + 1]);
   }
