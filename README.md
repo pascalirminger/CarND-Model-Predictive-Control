@@ -16,6 +16,7 @@ The code compiles without errors or warnings using the following command line:
 
 The model state contains:
 
+| Property       | Description                                      |
 |:---------------|:-------------------------------------------------|
 | ```px```       | X-position of the vehicle (in forware direction) |
 | ```py```       | Y-position of the vehicle (in lateral direction) |
@@ -26,6 +27,7 @@ The model state contains:
 
 The actuators of the vehicle are:
 
+| Property       | Description                                      |
 |:---------------|:-------------------------------------------------|
 | ```deltaPsi``` | Steering angle                                   |
 | ```a```        | Acceleration                                     |
