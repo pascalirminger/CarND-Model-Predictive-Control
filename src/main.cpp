@@ -107,7 +107,7 @@ int main() {
           /*******************************************************************************
           *  Fit a 3rd order polynomial to the waypoints                                 *
           *******************************************************************************/
-          auto coeffs = polyfit(ptsx_transformed, ptsy_transformed, 3);
+          const auto coeffs = polyfit(ptsx_transformed, ptsy_transformed, 3);
 
           /*******************************************************************************
           *  Define the current state vector                                             *
