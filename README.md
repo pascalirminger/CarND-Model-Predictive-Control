@@ -24,6 +24,8 @@ The model state contains:
 | ```py```       | Y-position of the vehicle (in lateral direction) |
 | ```psi```      | Orientation of the vehicle                       |
 | ```v```        | Velocity of the vehicle                          |
+| ```cte```      | Cross-track error                                |
+| ```epsi```     | Orientation error                                |
 
 The actuators of the vehicle are:
 
@@ -34,13 +36,15 @@ The actuators of the vehicle are:
 
 The update equations used to predict future states are:
 
-    px(t+1)  = px(t) + v(t) * cos(psi(t)) * dt
-    py(t+1)  = py(t) + v(t) * sin(psi(t)) * dt
-    psi(t+1) = psi(t) - v(t) / Lf * deltaPsi * dt
-    v(t+1)   = v(t) + a * dt
+    px[t+1]  = px[t] + v[t] * cos(psi[t]) * dt
+    py[t+1]  = py[t] + v[t] * sin(psi[t]) * dt
+    psi[t+1] = psi[t] + v[t] / Lf * deltaPsi * dt
+    v[t+1]   = v[t] + a * dt
+    psi[t+1] = f(px[t]) - py[t] + v[t] * sin(epsi[t]) * dt
+    v[t+1]   = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
 
-Where ```dt``` is the timestep between predictions and ```Lf``` is the distance between the front and the center of gravity of the vehicle, which determines its turning radius.
+Where ```dt``` is the timestep between predictions and ```Lf``` is the distance between the front wheel and the center of gravity of the vehicle, which determines its turning radius.
 
 ### Timestep Length and Elapsed Duration (N & dt)
 
-k_{n+1}
+
