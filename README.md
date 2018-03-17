@@ -1,2 +1,46 @@
-# CarND-Model-Predictive-Control
-Project: Model Predictive Control (MPC) :: Udacity Self-Driving Car ND
+# Model Predictive Control (MPC) Project
+
+# [Rubric](https://review.udacity.com/#!/rubrics/896/view) points
+
+## Compilation
+
+### Your code should compile
+
+The code compiles without errors or warnings using the following command line:
+
+    cmake .. && make
+
+## Implementation
+
+### The Model
+
+**TODO: Student describes their model in detail. This includes the state, actuators and update equations.**
+
+The model state contains:
+
+|                |                                                  |
+|:---------------|:-------------------------------------------------|
+| ```px```       | X-position of the vehicle (in forware direction) |
+| ```py```       | Y-position of the vehicle (in lateral direction) |
+| ```psi```      | Orientation of the vehicle                       |
+| ```v```        | Velocity of the vehicle                          |
+
+The actuators of the vehicle are:
+
+|                |                                                  |
+|:---------------|:-------------------------------------------------|
+| ```deltaPsi``` | Steering angle                                   |
+| ```a```        | Acceleration                                     |
+
+The update equations used to predict future states are:
+
+    px(t+1)  = px(t) + v(t) * cos(psi(t)) * dt
+    py(t+1)  = py(t) + v(t) * sin(psi(t)) * dt
+    psi(t+1) = psi(t) - v(t) / Lf * deltaPsi * dt
+    v(t+1)   = v(t) + a * dt
+
+Where ```dt``` is the timestep between predictions and ```Lf``` is the distance between the front and the center of gravity of the vehicle, which determines its turning radius.
+
+### Timestep Length and Elapsed Duration (N & dt)
+
+k_{n+1}
