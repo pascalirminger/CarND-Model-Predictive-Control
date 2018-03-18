@@ -14,22 +14,13 @@ const int cost_factor_epsi = 1500;
 const int cost_factor_v = 1;
 const int cost_factor_current_delta = 5000;
 const int cost_factor_current_a = 50;
-const int cost_factor_diff_delta = 300000;
+const int cost_factor_diff_delta = 3000000;
 const int cost_factor_diff_a = 5000;
-
-// This value assumes the model presented in the classroom is used.
-// It was obtained by measuring the radius formed by running the vehicle in the
-// simulator around in a circle with a constant steering angle and velocity on a
-// flat terrain.
-// Lf was tuned until the the radius formed by the simulating the model
-// presented in the classroom matched the previous radius.
-// This is the length from front to CoG that has a similar radius.
-const double Lf = 2.67;
 
 // Reference values for errors and velocity
 const double ref_cte = 0;
 const double ref_epsi = 0;
-const double ref_v = 80;
+const double ref_v = 95;
 
 // The solver takes all state and actuator values from a single vector:
 // Set up indices for easier access later on
