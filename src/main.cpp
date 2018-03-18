@@ -83,12 +83,11 @@ int main() {
         string event = j[0].get<string>();
         if (event == "telemetry") {
           // j[1] is the data JSON object
-          vector<double> ptsx = j[1]["ptsx"];
-          vector<double> ptsy = j[1]["ptsy"];
-          double px = j[1]["x"];
-          double py = j[1]["y"];
-          double psi = j[1]["psi"];
-          double v = j[1]["speed"];
+          const vector<double> ptsx = j[1]["ptsx"];
+          const vector<double> ptsy = j[1]["ptsy"];
+          const double px = j[1]["x"];
+          const double py = j[1]["y"];
+          const double psi = j[1]["psi"];
 
           /*******************************************************************************
           *  Transform waypoint coordinates to vehicle coordinates                       *
@@ -110,18 +109,36 @@ int main() {
           const auto coeffs = polyfit(ptsx_transformed, ptsy_transformed, 3);
 
           /*******************************************************************************
-          *  Define the current state vector                                             *
+          *  Define the state vector for MPC                                             *
           *******************************************************************************/
-          // Initial state
+          // Initial state (t=0)
           const double x0 = 0;
           const double y0 = 0;
           const double psi0 = 0;
           const double cte0 = polyeval(coeffs, 0);
           const double epsi0 = -atan(coeffs[1]);
 
+          // Convert miles per hour to meter per second
+          const double v = (double)j[1]["speed"] * 0.44704;
+          // Invert sign because turning left is negative sign in simulator but
+          // positive yaw for MPC
+          const double delta = -(double)j[1]["steering_angle"];
+          const double a = j[1]["throttle"];
+
+          // Define latency
+          const double latency = 0.1;  // 100 ms
+
+          // Predict state after delay (t=latency)
+          const double xLat = x0 + v * cos(psi0) * latency;
+          const double yLat = y0 + v * sin(psi0) * latency;
+          const double cteLat = cte0 + v * sin(epsi0) * latency;
+          const double epsiLat = epsi0 + v * delta * latency / Lf;
+          const double psiLat = psi0 + v * delta * latency / Lf;
+          const double vLat = v + a * latency;
+
           // Define state vector
           Eigen::VectorXd state(6);
-          state << x0, y0, psi0, v, cte0, epsi0;
+          state << xLat, yLat, psiLat, vLat, cteLat, epsiLat;
 
           /*******************************************************************************
           *  Find the MPC solution                                                       *
