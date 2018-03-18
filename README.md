@@ -49,7 +49,7 @@ Where ```dt``` is the timestep between predictions and ```Lf``` is the distance 
 
 ### Polynomial Fitting and MPC Preprocessing
 
-First, the waypoints provided by the simulator are transformed to vehicle coordinates (see [```main.cpp```, lines 96-105](./src/main.cpp#L96-L105)):
+First, the waypoints provided by the simulator are transformed to vehicle coordinates (see [```main.cpp```, lines 95-104](./src/main.cpp#L95-L104)):
 
     const size_t n_waypoints = ptsx.size();
     const double minus_psi = 0.0 - psi;
@@ -62,20 +62,26 @@ First, the waypoints provided by the simulator are transformed to vehicle coordi
         ptsy_transformed[i] = dX * sin(minus_psi) + dY * cos(minus_psi);
     }
 
-Then, a 3rd-degree polynomial is fitted to the transformed waypoints using the ```polyfit()``` function (see [```main.cpp```, line 110](./src/main.cpp#L110)):
+Then, a 3rd-degree polynomial is fitted to the transformed waypoints using the ```polyfit()``` function (see [```main.cpp```, line 109](./src/main.cpp#L109)):
 
     const auto coeffs = polyfit(ptsx_transformed, ptsy_transformed, 3);
 
-Finally, the polynomial coefficients are used to calculate ```cte``` (cross-track error) and ```epsi``` (orientation error) (see [```main.cpp```, lines 119-120](./src/main.cpp#L119-L120)):
+Finally, the polynomial coefficients are used to calculate ```cte``` (cross-track error) and ```epsi``` (orientation error) (see [```main.cpp```, lines 118-119](./src/main.cpp#L118-L119)):
 
-    const double cte = polyeval(coeffs, 0);
-    const double epsi = -atan(coeffs[1]);
+    const double cte0 = polyeval(coeffs, 0);
+    const double epsi0 = -atan(coeffs[1]);
 
 ### Model Predictive Control with Latency
 
-In order to simulate a system that is closer to real-life, latency of 100 milliseconds between a cycle of the MPC controller and the actual actuation was artifically introduced. Predictably, this had multiple effects:
+In order to simulate a system that is closer to real-life, latency of 100 milliseconds between a cycle of the MPC controller and the actual actuation was artifically introduced.
 
-* It affected driving at higher speeds. It did so when the vehicle was driving towards a sharp turn: the vehicle would react too late and run off the road.
-* Any existing oscillation was amplified and got even worse.
+    const double latency = 0.1;  // 100 ms
 
-Regarding this issue, the model has been tuned to drive more conservatively.
+The calculated initial state at ```t=0``` (see above) and the corresponding latency are used to predict the state at ```t=latency``` (see [```main.cpp```, lines 132-137](./src/main.cpp#L132-L137)):
+
+    const double xLat = x0 + v * cos(psi0) * latency;
+    const double yLat = y0 + v * sin(psi0) * latency;
+    const double cteLat = cte0 + v * sin(epsi0) * latency;
+    const double epsiLat = epsi0 + v * delta * latency / Lf;
+    const double psiLat = psi0 + v * delta * latency / Lf;
+    const double vLat = v + a * latency;
